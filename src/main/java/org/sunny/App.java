@@ -43,15 +43,19 @@ public static class AppRunner extends Configured implements Tool {
 			FileSystem fs = FileSystem.get(getConf());
 			FileStatus[] filesFound= fs.listStatus(new Path(path), new PathFilter() {
 				public boolean accept(Path path) {
-					return true;
+					FileStatus fileStatus = fs.getFileStatus(path);
+					if(fileStatus.isDirectory() && fileStatus.getName().matches("^190.$")) {
+						return true;
+					} else {
+						return false;
+					}
 				}
 			});
 			return FileUtil.stat2Paths(filesFound);			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
-		
+		}		
 		return null;
 	}
 }
