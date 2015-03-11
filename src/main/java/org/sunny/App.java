@@ -41,7 +41,7 @@ public static class AppRunner extends Configured implements Tool {
 		uncompressFile(compressedFile,uncompressedFile);
 		String processedFileChecksum 				= getChecksum(uncompressedFile);
 		String originallyUncompressedFileChecksum 	= getChecksum(originallyUncompressedFile);
-		if(processedFileChecksum == originallyUncompressedFileChecksum) {
+		if(processedFileChecksum.equals(originallyUncompressedFileChecksum)) {
 			System.out.println("Files are same");
 		} else {
 			System.out.println("Files are not same");
