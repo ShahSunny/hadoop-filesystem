@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -35,9 +36,10 @@ public static class AppRunner extends Configured implements Tool {
 		conf.set("fs.defaultFS", "file:///");
 		conf.set("mapreduce.framework.name", "local");
 		setConf(conf);
-		String compressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.gz";
-		String uncompressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.bk";
-		String originallyUncompressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981";
+		String compressedFile = args[0];//"/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.gz";
+		String compressedFileWithoutSuffix = getFileNameWithoutSuffix(compressedFile);
+		String uncompressedFile = compressedFileWithoutSuffix + ".bk";
+		String originallyUncompressedFile = compressedFileWithoutSuffix;
 		uncompressFile(compressedFile,uncompressedFile);
 		String processedFileChecksum 				= getChecksum(uncompressedFile);
 		String originallyUncompressedFileChecksum 	= getChecksum(originallyUncompressedFile);
@@ -51,6 +53,14 @@ public static class AppRunner extends Configured implements Tool {
 		return 0;
 	}
 	
+	private String getFileNameWithoutSuffix(String compressedFile) {
+		Path path = new Path(compressedFile);
+		CompressionCodecFactory factory = new CompressionCodecFactory(getConf());
+	    CompressionCodec codec = factory.getCodec(path);
+		String outputUri = CompressionCodecFactory.removeSuffix(path.toString(), codec.getDefaultExtension());
+		return outputUri;
+	}
+
 	private String getChecksum(String filePath) {
 		String md5 = null;
 		try{
