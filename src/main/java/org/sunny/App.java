@@ -1,10 +1,19 @@
 package org.sunny;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-
+import java.io.OutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
+import org.apache.hadoop.io.compress.CompressionInputStream;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -26,41 +35,58 @@ public static class AppRunner extends Configured implements Tool {
 		conf.set("fs.defaultFS", "file:///");
 		conf.set("mapreduce.framework.name", "local");
 		setConf(conf);
-        Path[] paths = filterOutPaths(args[0]);
-        printPaths(paths);
+		String compressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.gz";
+		String uncompressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.bk";
+		String originallyUncompressedFile = "/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981";
+		uncompressFile(compressedFile,uncompressedFile);
+		String processedFileChecksum 				= getChecksum(uncompressedFile);
+		String originallyUncompressedFileChecksum 	= getChecksum(originallyUncompressedFile);
+		if(processedFileChecksum == originallyUncompressedFileChecksum) {
+			System.out.println("Files are same");
+		} else {
+			System.out.println("Files are not same");
+			System.out.println("processedFileChecksum = " + processedFileChecksum);
+			System.out.println("originallyUncompressedFileChecksum = " + originallyUncompressedFileChecksum);
+		}
 		return 0;
 	}
-
-
-	private void printPaths(Path[] paths) {
-		for (Path p : paths) {
-			System.out.println(p.getName());
-		}		
-	}
-
-	private Path[] filterOutPaths(String path) {
-		try {
-			FileSystem fs = FileSystem.get(getConf());
-			FileStatus[] filesFound= fs.listStatus(new Path(path), new PathFilter() {
-				public boolean accept(Path path) {
-					try {
-						FileStatus fileStatus = fs.getFileStatus(path);
-						if(fileStatus.isDirectory() && path.getName().matches("^190.$")) {
-							return true;
-						} 
-					} catch(IOException e) {
-						
-					} 
-					return false;
-				}
-			});
-			return FileUtil.stat2Paths(filesFound);			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
+	
+	private String getChecksum(String filePath) {
+		String md5 = null;
+		try{
+			FileInputStream fis = new FileInputStream(new File(filePath));
+			md5 = org.apache.commons.codec.digest.DigestUtils.md5Hex(fis);
+			fis.close();
+		} catch(IOException e) {
 			e.printStackTrace();
-		}		
-		return null;
+		}
+		return md5;
 	}
+
+	private void uncompressFile(String compressedFile, String uncompressedFile) throws IOException {
+		OutputStream out = null;
+		CompressionInputStream in = null;
+		try{
+			out = new BufferedOutputStream(new FileOutputStream(uncompressedFile));
+			Path path = new Path(compressedFile);		
+			CompressionCodecFactory factory = new CompressionCodecFactory(getConf());
+		    CompressionCodec codec = factory.getCodec(path);
+		    in = codec.createInputStream(new BufferedInputStream(new FileInputStream(compressedFile)));
+		    IOUtils.copyBytes(in, out, 4096, false);
+		} catch(IOException e) {
+			e.printStackTrace();
+		} catch(NullPointerException e) {
+			e.printStackTrace();
+		} finally {
+			if(in != null) {
+				in.close();
+			}
+			if(out != null) {
+				out.close();
+			}
+		}
+	}	
+	    
 }
 
 }
