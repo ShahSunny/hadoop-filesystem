@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.apache.hadoop.conf.Configuration;
@@ -15,6 +16,7 @@ import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.CompressionCodecFactory;
 import org.apache.hadoop.io.compress.CompressionInputStream;
+import org.apache.hadoop.mapred.lib.InputSampler;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
@@ -36,11 +38,21 @@ public static class AppRunner extends Configured implements Tool {
 		conf.set("fs.defaultFS", "file:///");
 		conf.set("mapreduce.framework.name", "local");
 		setConf(conf);
+		
 		String compressedFile = args[0];//"/home/sunny/ncdc_data/ftp.ncdc.noaa.gov/pub/data/noaa/1981/992210-99999-1981.gz";
 		String compressedFileWithoutSuffix = getFileNameWithoutSuffix(compressedFile);
-		String uncompressedFile = compressedFileWithoutSuffix + ".bk";
+		String uncompressedFile = compressedFileWithoutSuffix + ".bk";		
 		String originallyUncompressedFile = compressedFileWithoutSuffix;
-		uncompressFile(compressedFile,uncompressedFile);
+		
+		testDecompression(compressedFile, uncompressedFile,originallyUncompressedFile);
+		testCompressionWithSnappy(originallyUncompressedFile,args[1]);
+		return 0;
+	}
+	
+	private void testCompressionWithSnappy(String originallyUncompressedFile,String codec) throws IOException {
+		String compressedFile = compressFile(originallyUncompressedFile,codec);
+		String uncompressedFile = compressedFile + ".temp";
+		uncompressFile(compressedFile, uncompressedFile);
 		String processedFileChecksum 				= getChecksum(uncompressedFile);
 		String originallyUncompressedFileChecksum 	= getChecksum(originallyUncompressedFile);
 		if(processedFileChecksum.equals(originallyUncompressedFileChecksum)) {
@@ -50,9 +62,51 @@ public static class AppRunner extends Configured implements Tool {
 			System.out.println("processedFileChecksum = " + processedFileChecksum);
 			System.out.println("originallyUncompressedFileChecksum = " + originallyUncompressedFileChecksum);
 		}
-		return 0;
+		(new File(uncompressedFile)).deleteOnExit();
+		(new File(compressedFile)).deleteOnExit();
 	}
-	
+
+	private String compressFile(String uncompresedFile, String codecClassName) throws IOException {
+		OutputStream out = null;
+		InputStream in	 = null;
+		String compressedFile = null;
+		try{
+			CompressionCodecFactory factory = new CompressionCodecFactory(getConf());
+			CompressionCodec codec = factory.getCodecByClassName(codecClassName);
+			compressedFile = uncompresedFile + codec.getDefaultExtension();
+			System.out.println(compressedFile);		
+			out = codec.createOutputStream(new BufferedOutputStream(new FileOutputStream(compressedFile)));
+			in 	= new BufferedInputStream(new FileInputStream(uncompresedFile));		    
+		    IOUtils.copyBytes(in, out, 4096, false);
+		} catch(IOException e) {
+			e.printStackTrace();
+		} catch(NullPointerException e) {
+			e.printStackTrace();
+		} finally {
+			if(in != null) {
+				in.close();
+			}
+			if(out != null) {
+				out.close();
+			}
+		}
+		return compressedFile;
+	}
+
+	private void testDecompression(String compressedFile,
+			String uncompressedFile, String originallyUncompressedFile) throws IOException {
+		uncompressFile(compressedFile,uncompressedFile);
+		String processedFileChecksum 				= getChecksum(uncompressedFile);
+		String originallyUncompressedFileChecksum 	= getChecksum(originallyUncompressedFile);
+		if(processedFileChecksum.equals(originallyUncompressedFileChecksum)) {
+			System.out.println("Files are same");
+		} else {
+			System.out.println("Files are not same");
+			System.out.println("processedFileChecksum = " + processedFileChecksum);
+			System.out.println("originallyUncompressedFileChecksum = " + originallyUncompressedFileChecksum);
+		}		
+	}
+
 	private String getFileNameWithoutSuffix(String compressedFile) {
 		Path path = new Path(compressedFile);
 		CompressionCodecFactory factory = new CompressionCodecFactory(getConf());
